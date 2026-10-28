@@ -6,7 +6,7 @@ El objetivo es construir una arquitectura en la que `JavaScript` se comunique co
 Para aislar los servicios y facilitar la reproducibilidad del entorno, utilizaremos Docker y contenedores independientes:
 
 - ***php-reto***: Servidor web con `PHP 8.4` y `Apache`.
-- ***mariadb-reto***: Base de datos basada en al imagen *`mariadb:latest`*.
+- ***mariadb-reto***: Base de datos basada en la imagen *`mariadb:latest`*.
 
 ### Requisitos
 El software utilizado en la máquina física para este proyecto es el siguiente: 
