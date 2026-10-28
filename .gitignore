@@ -1,0 +1,6 @@
+# Ignorar archivos del sistema o configuraciones de entornos de desarrollo
+.DS_Store
+.idea/
+.vscode/
+
+
