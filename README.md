@@ -28,7 +28,7 @@ docker run --name mariadb-reto -e MYSQL_ROOT_PASSWORD=CONTRASEÑA -d -p 3306:330
 
 - `--name mariadb-reto`: Le asignamos un nombre sencillo al contenedor. Si no lo indicamos, **Docker** asignaría un nombre aleatorio.
 
-- `-e MYSQL_ROOT_PASSWORD=root1234`: Configura la contraseña del usuario `root` mediante una variable de entorno.
+- `-e MYSQL_ROOT_PASSWORD=********`: Configura la contraseña del usuario `root` mediante una variable de entorno.
 
 - El parámetro `-d` indica  el modo *detached*, es decir, que el contenedor corra en segundo plano liberando la terminal.
 
@@ -149,7 +149,7 @@ MariaDB [gestor_tareas]> SHOW GRANTS FOR 'tareas_app'@'%';
 +-----------------------------------------------------------------------------------------------------------+
 | Grants for tareas_app@%                                                                                   |
 +-----------------------------------------------------------------------------------------------------------+
-| GRANT USAGE ON *.* TO `tareas_app`@`%` IDENTIFIED BY PASSWORD '*AF129D16A855783E8FB5E0A8FD3514954958D728' |
+| GRANT USAGE ON *.* TO `tareas_app`@`%` IDENTIFIED BY PASSWORD '****************************' |
 | GRANT SELECT, INSERT, UPDATE, DELETE ON `gestor_tareas`.* TO `tareas_app`@`%`                             |
 +-----------------------------------------------------------------------------------------------------------+
 2 rows in set (0.001 sec)
