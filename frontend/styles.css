@@ -1,0 +1,77 @@
+* {
+    font-size: large;
+}
+
+body {
+    font-family: monospace;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+section {
+    margin-bottom: 30px;
+}
+
+ul {
+    padding: 0;
+    list-style: none;
+}
+
+label {
+    display: block;
+    margin-bottom: 10px;
+}
+
+#inputTarea {
+    padding: 8px;
+    margin-left: 8px;
+}
+
+button {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+li {
+    display: flex;
+    align-items: center;
+    margin: bottom 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f8f8f8;
+}
+
+li label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 14px 12px;
+}
+
+li input {
+    margin: right 10px;
+}
+
+li button {
+    margin-left: auto;
+    margin-right: 12px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+li button:hover {
+    background-color: #3f3b3b;
+}
+
+.completada {
+    text-decoration: line-through;
+}

@@ -20,7 +20,7 @@ Para iniciar un entorno de base de datos aislado, utilizaremos la imagen oficial
 
 Ejecutamos el siguiente comando para levantar el contenedor:
 ```bash
-docker run --name mariadb-reto -e MYSQL_ROOT_PASSWORD=root1234 -d -p 3306:3306 mariadb:latest
+docker run --name mariadb-reto -e MYSQL_ROOT_PASSWORD=CONTRASEÑA -d -p 3306:3306 mariadb:latest
 ```
 
 #### Desglose del comando:
@@ -41,7 +41,7 @@ docker run --name mariadb-reto -e MYSQL_ROOT_PASSWORD=root1234 -d -p 3306:3306 m
 #### Acceso a `MariaDB`:
 Una vez funcionando el contenedor, para acceder al cliente de `MariaDB`, nos conectamos al contenedor de la siguiente forma:
 ```bash
-docker exec -it mariadb-reto mariadb -u root -proot1234
+docker exec -it mariadb-reto mariadb -u root -pCONTRASEÑA
 ```
 
 ##### Desglose del comando:
@@ -113,7 +113,7 @@ MariaDB [gestor_tareas]> SELECT * FROM tareas;
 5 rows in set (0.001 sec)
 ```
 #### Creación de un usuario específico para la aplicación:
-Por seguridad y buenas prácticas, crearemos un usuario para acceder a las operaciones dentro de la base de datos. De esta manera, evitaríamos un riesgo alto contra inyecciones `SQL`, además de establecer un control más estricto sobre operaciones mas *peligrosas* sobre la base de datos.
+Por seguridad y buenas prácticas, crearemos un usuario para acceder a las operaciones dentro de la base de datos. De esta manera, evitaríamos un riesgo alto contra inyecciones `SQL`, además de establecer un control más estricto sobre operaciones mas *peligrosas* sobre la base de datos. Debemos tener en cuenta que esto no evita la inyección, ya que con ese usuario podrían leer o borrar todas nuestras tareas.
 ```sql
 CREATE USER 'tareas_app'@'%' IDENTIFIED BY 'CONTRASEÑA';
 ```
@@ -240,7 +240,6 @@ phpinfo();
 ```
 
 ### Conexión de `PHP` con `MariaDB` mediante `PDO`
-
 #### Comprobaciones del entorno PHP
 Antes de comenzar, debemos revisar qué módulos de `PHP` tenemos. Para poder conectar la base de datos de una forma más cómoda y universal, utilizaremos la extensión de `PHP PDO (PHP Data Objects)`. Deberíamos tenerla instalada junto a sus dependencias, porque así lo indicamos en el `Dockerfile` previamente. 
 ```bash
@@ -250,6 +249,71 @@ pdo_mysql
 pdo_sqlite
 ```
 
+#### Conexión del archivo `db.php`
+Configuramos el archivo `db.php` para que se conecte al contenedor de la base de datos `mariadb-reto`. Si usáramos `localhost`, intentaría acceder a la base de datos dentro del contenedor `php-reto`, en la que no existe ninguna base de datos escuchando en el puerto 3306. `PHP` lo localiza porque se encuentran en la misma red Docker `mini-reto-network`, y éste incluye un DNS interno en las redes creadas por el usuario, que traduce el host `mariadb-reto`. Utilizamos el usuario `tareas_app` debido al **principio de menor privilegio** mencionado anteriormente.
+```php
+<?php 
 
+$dsn = "mysql:host=mariadb-reto;dbname=gestor_tareas;charset=utf8mb4";
+$user = "tareas_app";
+$pass = "CONTRASEÑA";
+
+try {
+    $pdo = new PDO($dsn, $user, $pass);
+} catch (PDOException $e) {
+    echo "Error de conexión a la base de Datos. <br>", $e->getMessage();
+}
+```
+El `$dsn` (*Data Source Name*) le indica a `PDO` la información necesaria para conectarse a la base de datos. Por ejemplo, el `host` que es el nombre que usa **Docker** para identificar al contenedor de la base de datos y el `dbname` que es la base de datos con la que estableceremos la conexión.
+
+Utilizamos el usuario `tareas_app` desde el que podemos acceder desde cualquier host de la red. Cuando creamos el usuario `'tareas_app'@'%'`en `MariaDB`, el símbolo de porcentaje nos lo indica.[^2] 
+
+Dentro del bloque `try` intentamos la conexión con la información aportada y en caso de fallar, lanza una excepción de la clase `PDOException`. Existe una jerarquía de excepciones, la cual el bloque `catch` la interceptará en función del nivel de la jerarquía que esté trabajando:
+
+`Throwable -> Exception -> RuntimeException -> PDOException`
+
+Un bloque `catch` solo atrapa a su tipo y sus descendientes, nunca a sus ancestros o hermanos. Cuando se ejecuta imprime un mensaje que expone ciertos datos internos.
+
+Este archivo no imprime nada cuando todo va bien porque un `echo` imprimiría texto delante del JSON y `response.json()` fallaría.
+
+#### Archivo `tareas.php`
+Este archivo consulta todas las tareas de la tabla `tareas` y las devuelve al cliente en formato `JSON`.
+```php
+<?php
+
+// Archivo para obtener las filas de la tabla tareas y mostrarlas convertidas a JSON
+
+header('Content-Type: application/json');
+require "db.php";
+
+$consulta = $pdo->query("SELECT * FROM tareas");
+$tareas = $consulta->fetchAll(PDO::FETCH_ASSOC);
+$resultado = json_encode($tareas);
+
+echo $resultado;
+```
+
+##### Flujo del archivo, línea a línea
+1. **`header('Content-Type: application/json');`** avisa al cliente de que el cuerpo de la respuesta será `JSON`. No devuelve ningún dato: solo fija una cabecera.
+2. **`require "db.php";`** ejecuta `db.php` en este punto. Devuelve la conexión, que queda disponible en la variable `$pdo`.
+3. **`$pdo->query("SELECT * FROM tareas")`** envía la consulta a `MariaDB`. Devuelve un objeto `PDOStatement` (guardado en `$consulta`), que apunta a los resultados pero todavía no contiene las tareas.
+4. **`$consulta->fetchAll(PDO::FETCH_ASSOC)`** extrae todas las filas. `$tareas` es un array con una fila por tarea, y cada fila es un array **asociativo**: la clave es el nombre de la columna (`id`, `nombre`, `completada`).
+5. **`json_encode($tareas)`** convierte ese array de `PHP` en un **texto** (*string*) con formato `JSON`. Lo guardamos en `$resultado`.
+6. **`echo $resultado;`** envía ese texto al navegador. Sin esta línea, el script no produciría ninguna salida.
+
+##### ¿Por qué la cabecera va antes del `require`?
+Una respuesta `HTTP` envía primero las cabeceras y después el cuerpo. En cuanto `PHP` imprime algo con `echo`, el cuerpo empieza a enviarse y ya no se pueden modificar las cabeceras.
+
+Esto se comprobó provocando un fallo en `db.php` (contraseña incorrecta), cuyo `catch` ejecuta un `echo`:
+
+- **`header()` antes del `require`:** la cabecera se envía primero y el `echo` del `catch` viaja después como cuerpo. No hay ningún aviso.
+- **`header()` después del `require`:** el `echo` del `catch` ya ha enviado el cuerpo, así que la cabecera llega tarde y `PHP` muestra `Warning: headers already sent`.
+
+Por eso `header()` va antes: queda fijada pase lo que pase dentro de `db.php`.
+
+#### Limitación conocida
+Si la conexión falla, el `catch` de `db.php` imprime un mensaje de texto. El cliente recibiría algo que *declara* ser `JSON` pero no lo es, y `response.json()` fallaría en `JavaScript`. Además, el mensaje expone datos internos. Se corregirá en el reto 8.
 
 [^1]: Mapear el puerto hacia el exterior no es **estrictamente** necesario exponer el puerto al PC, ya que PHP hablará internamente con `MariaDB` mediante la red `mini-reto-network`. **Docker publica ese puerto en las interfaces de red del host por defecto**.
+
+[^2]: Esto en producción debería restringirse.
