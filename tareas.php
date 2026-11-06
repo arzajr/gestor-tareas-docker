@@ -1,8 +1,8 @@
 <?php
 // Archivo para obtener las filas de la tabla tareas y mostrarlas convertidas a JSON
+
 header('Content-Type: application/json');
 require "db.php";
-
 
 if($_SERVER['REQUEST_METHOD'] === 'GET'){
     $consulta = $pdo->query("SELECT * FROM tareas");
@@ -12,6 +12,3 @@ if($_SERVER['REQUEST_METHOD'] === 'GET'){
 
     echo $resultado;
 }
-
-
-

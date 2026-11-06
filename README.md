@@ -12,6 +12,16 @@ Para aislar los servicios y facilitar la reproducibilidad del entorno, utilizare
 El software utilizado en la máquina física para este proyecto es el siguiente: 
 - **Windows 10** con entorno **WSL2** (*Ubuntu 24*).
 - **Docker Desktop** (*Contenedores: **MariaDB, PHP 8.4 - Apache***).
+
+## Estado del proyecto
+
+| Completado                                                                             | En Curso                                                                        |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Preparación del entorno Docker : Contenedores MariaDB y PHP con su red correspondiente | Actualización de la base de datos al marcar/desmarcar una tarea como completada |
+| Conexión de PHP con MariaDB mediante PDO                                               | Actualización de la base de datos al eliminar una tarea                         |
+| Carga de las tareas de la base de datos en el index.html                               | Actualización de la base de datos al añadir una tarea                           |
+|                                                                                        | Comprobar que la respuesta HTTP ha sido satisfactoria dentro de `fetch()`       |
+
 ---
 ## 1. Preparación de `MariaDB`
 
@@ -70,8 +80,8 @@ USE gestor_tareas;
 Pasamos a crear la tabla `tareas`,  con sus campos previamente diseñados: 
 ```sql
  CREATE TABLE tareas (
-   completada BOOLEAN NOT NULL DEFAULT FALSE,
    nombre VARCHAR(150) NOT NULL,
+   completada BOOLEAN NOT NULL DEFAULT FALSE,
    id INT PRIMARY KEY AUTO_INCREMENT);
 ```
 
@@ -93,7 +103,7 @@ INSERT INTO tareas (nombre, completada)
 	VALUES ('Estudiar PHP', 0),
 	('Aprender Docker', 0),
 	('Pagar Multas DGT', 0),
-	('Amar a mi novia <3', 1),
+	('Amar a mi Novia <3', 1),
 	('Repartir fruta', 1);
 ```
 
@@ -154,7 +164,7 @@ MariaDB [gestor_tareas]> SHOW GRANTS FOR 'tareas_app'@'%';
 +-----------------------------------------------------------------------------------------------------------+
 2 rows in set (0.001 sec)
 ```
-
+---
 ## 2. `PHP` con`MariaDB`
 
 ### Redes en `Docker` y Comunicación entre Contenedores
@@ -201,7 +211,7 @@ RUN docker-php-ext-install pdo_mysql
 WORKDIR /var/www/html
 ```
 ##### Construcción de la imagen (`docker build`)
-El `Dockerfile` define cómo se construye la imagen, luego, utilizaremos esa imagen para crear el contenedor `php-reto`. Compilamos el archivo de configuración para generar la imagen local:
+Ejecutamos `docker build` para construir una imagen Docker a partir de las instrucciones definidas en el **Dockerfile**:
 ```bash
 docker build -t php-reto:local .
 ```
@@ -270,27 +280,31 @@ Utilizamos el usuario `tareas_app` desde el que podemos acceder desde cualquier 
 
 Dentro del bloque `try` intentamos la conexión con la información aportada y en caso de fallar, lanza una excepción de la clase `PDOException`. Existe una jerarquía de excepciones, la cual el bloque `catch` la interceptará en función del nivel de la jerarquía que esté trabajando:
 
-`Throwable -> Exception -> RuntimeException -> PDOException`
+`Throwable (INTERFAZ) -> Exception -> RuntimeException -> PDOException`
 
 Un bloque `catch` solo atrapa a su tipo y sus descendientes, nunca a sus ancestros o hermanos. Cuando se ejecuta imprime un mensaje que expone ciertos datos internos.
 
 Este archivo no imprime nada cuando todo va bien porque un `echo` imprimiría texto delante del JSON y `response.json()` fallaría.
 
 #### Archivo `tareas.php`
-Este archivo consulta todas las tareas de la tabla `tareas` y las devuelve al cliente en formato `JSON`.
+Este archivo consulta todas las tareas de la tabla `tareas` y las devuelve al cliente en formato `JSON`. Actualmente, el endpoint gestiona las peticiones GET para consultar las tareas. Se añadirán progresivamente las operaciones POST, PATCH y DELETE.
 ```php
 <?php
-
 // Archivo para obtener las filas de la tabla tareas y mostrarlas convertidas a JSON
 
 header('Content-Type: application/json');
-require "db.php";
+require "db.php"; 
 
-$consulta = $pdo->query("SELECT * FROM tareas");
-$tareas = $consulta->fetchAll(PDO::FETCH_ASSOC);
-$resultado = json_encode($tareas);
+if($_SERVER['REQUEST_METHOD'] === 'GET'){
 
-echo $resultado;
+    $consulta = $pdo->query("SELECT * FROM tareas");
+    $tareas = $consulta->fetchAll(PDO::FETCH_ASSOC); 
+
+    $resultado = json_encode($tareas);
+
+    echo $resultado;
+
+}
 ```
 
 ##### Flujo del archivo, línea a línea
@@ -311,8 +325,106 @@ Esto se comprobó provocando un fallo en `db.php` (contraseña incorrecta), cuyo
 
 Por eso `header()` va antes: queda fijada pase lo que pase dentro de `db.php`.
 
-#### Limitación conocida
-Si la conexión falla, el `catch` de `db.php` imprime un mensaje de texto. El cliente recibiría algo que *declara* ser `JSON` pero no lo es, y `response.json()` fallaría en `JavaScript`. Además, el mensaje expone datos internos. Se corregirá en el reto 8.
+---
+## 3. Frontend: JavaScript con `fetch()`
+### Cómo acceder a la aplicación
+Accedemos a la aplicación mediante la siguiente URL: `localhost:8080/frontend/index.html`.
+Evidentemente, debemos levantar previamente los contenedores Docker para poder tener acceso.
+### Carga del script
+El atributo `defer` permite descargar el archivo JavaScript mientras el navegador analiza el HTML. Su ejecución se pospone hasta que termina el análisis del documento, por lo que el script puede acceder a los elementos del DOM. Además, los scripts con `defer` mantienen el orden de ejecución en el que aparecen en el HTML.
+
+Podríamos lograr el mismo resultado utilizando el evento `DOMContentLoaded`, que se dispara cuando la carga del DOM ha sido completada, pero para no introducir todo el código del script dentro de un evento, se ha optado por utilizar la opción con `defer`.
+### Lectura de tareas con `fetch (GET)`
+```javascript
+const listaTareas = document.querySelector("#listaTareas"); 
+
+// Petición fetch a tareas.php
+fetch('../tareas.php').then(
+    (response) => {
+        return response.json();
+    }).then(
+        (data) => {
+            data.forEach(tarea => {
+                renderizarTarea(tarea);
+            })
+        })
+        
+function renderizarTarea(tarea) { 
+    // Representar las tareas dentro del HTML
+}
+```
+Se crea una constante para referirse al `<ul>` del HTML `listaTareas`. A continuación se realiza una petición `fetch` al archivo `tareas.php` que nos devuelve las tareas de la base de datos. Como este proceso no es instantáneo, se ejecuta de forma asíncrona, mientras el script continúa su ejecución, en este caso, renderizando la función que permite mostrar las tareas dentro del HTML.
+### Renderizado de las tareas `renderizarTarea(tarea)`
+```javascript
+function renderizarTarea(tarea) {  
+
+    // Representar las tareas dentro del HTML, creamos el <li>
+    const elementoTarea = document.createElement("li");
+    const label = document.createElement("label");
+
+    if (tarea.completada == 1) {
+        elementoTarea.classList.add("completada");
+    }
+
+    // Creamos el <input> (checkbox)
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = tarea.completada; 
+
+    // Hacemos que al marcar el checkbox cambie el estado del objeto
+    checkbox.addEventListener("click", function () {
+        tarea.completada = !tarea.completada;
+
+        // Si la tarea está completada, tacharla, sino no
+
+        if (tarea.completada == 1) {
+            elementoTarea.classList.add("completada");
+        } else {
+            elementoTarea.classList.remove("completada");
+        }
+    });
+
+    // Añadimos checkbox al <li>
+    label.appendChild(checkbox);
+    
+    // Creamos el texto con el nombre de la nueva tarea
+    const textoTarea = document.createTextNode(tarea.nombre);
+
+    // Añadimos al elemento de la tarea el checkbox
+    label.appendChild(textoTarea);
+
+    // Creamos el botón de eliminar
+    const botonEliminar = document.createElement("button");
+
+    botonEliminar.textContent = "Eliminar"; 
+
+    // Evento del botón eliminar
+    botonEliminar.addEventListener("click", function () {
+
+        // Confirmar borrado
+        const confirmar = confirm(
+            "¿Estás seguro de que quieres eliminar " + tarea.nombre + " ?"
+        );  
+
+        // Borrado del <li>
+        if (confirmar) {
+            elementoTarea.remove();
+        }
+    })
+  
+    elementoTarea.appendChild(label);
+  
+    // Lo añadimos al li
+    elementoTarea.appendChild(botonEliminar);
+
+    // Añadimos el elemento a la lista de tareas
+    listaTareas.appendChild(elementoTarea);
+
+}
+```
+
+## Limitaciones conocidas
+Si la conexión falla, el `catch` de `db.php` imprime un mensaje de texto. El cliente recibiría algo que *declara* ser `JSON` pero no lo es, y `response.json()` fallaría en `JavaScript`. Además, el mensaje expone datos internos. Se corregirá posteriormente. 
 
 [^1]: Mapear el puerto hacia el exterior no es **estrictamente** necesario exponer el puerto al PC, ya que PHP hablará internamente con `MariaDB` mediante la red `mini-reto-network`. **Docker publica ese puerto en las interfaces de red del host por defecto**.
 
