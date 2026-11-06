@@ -3,8 +3,15 @@
 header('Content-Type: application/json');
 require "db.php";
 
-$consulta = $pdo->query("SELECT * FROM tareas");
-$tareas = $consulta->fetchAll(PDO::FETCH_ASSOC);
-$resultado = json_encode($tareas);
 
-echo $resultado;
+if($_SERVER['REQUEST_METHOD'] === 'GET'){
+    $consulta = $pdo->query("SELECT * FROM tareas");
+    $tareas = $consulta->fetchAll(PDO::FETCH_ASSOC);
+
+    $resultado = json_encode($tareas);
+
+    echo $resultado;
+}
+
+
+

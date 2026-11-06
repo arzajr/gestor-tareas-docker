@@ -24,7 +24,6 @@ añadirTarea.addEventListener("click", function () {
         tareas.push(nuevaTarea);
 
 
-
         // Representar las tareas dentro del HTML, creamos el <li>
         const elementoTarea = document.createElement("li");
         const label = document.createElement("label");
